@@ -49,9 +49,13 @@ groq_key = (
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def fetch_groq_models(api_key: str) -> list[str]:
-    """Query Groq API directly to retrieve standard chat models available for this key."""
+def get_working_groq_model(api_key: str) -> str:
+    """Auto-detect the first active, non-decommissioned production model on this Groq account."""
     import httpx
+    from langchain_groq import ChatGroq
+
+    candidates = []
+    # 1. Fetch live models list from Groq API
     try:
         r = httpx.get(
             "https://api.groq.com/openai/v1/models",
@@ -59,35 +63,31 @@ def fetch_groq_models(api_key: str) -> list[str]:
             timeout=5.0,
         )
         if r.status_code == 200:
-            data = r.json()
-            # Filter strictly: exclude partner models with '/' and non-chat models
-            models = [
-                m["id"] for m in data.get("data", [])
-                if "/" not in m["id"]  # Exclude third-party partner org models (e.g. canopylabs/...)
-                and not any(skip in m["id"].lower() for skip in ["whisper", "vision", "embed", "tts", "guard", "audio", "orpheus", "prompt"])
-                and any(valid in m["id"].lower() for valid in ["llama", "gemma", "mixtral", "qwen"])
-            ]
-            if models:
-                # Prioritize 70b / 8b Llama models
-                def _rank(m_id):
-                    m_lower = m_id.lower()
-                    if "70b" in m_lower and "llama" in m_lower:
-                        return 0
-                    if "8b" in m_lower and "llama" in m_lower:
-                        return 1
-                    if "llama" in m_lower:
-                        return 2
-                    if "mixtral" in m_lower:
-                        return 3
-                    return 4
-                models.sort(key=_rank)
-                return models
+            for item in r.json().get("data", []):
+                mid = item.get("id", "")
+                if "/" not in mid and not any(skip in mid.lower() for skip in ["whisper", "vision", "embed", "tts", "guard", "audio", "orpheus"]):
+                    candidates.append(mid)
     except Exception:
         pass
-    return ["llama3-8b-8192", "llama3-70b-8192", "mixtral-8x7b-32768", "gemma2-9b-it"]
+
+    # 2. Priority production models
+    for m in ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "qwen-2.5-32b", "gemma2-9b-it", "mixtral-8x7b-32768"]:
+        if m not in candidates:
+            candidates.insert(0, m)
+
+    # 3. Test candidates until one succeeds
+    for cand in candidates:
+        try:
+            test_llm = ChatGroq(model_name=cand, api_key=api_key, temperature=0, max_tokens=5)
+            test_llm.invoke("ping")
+            return cand
+        except Exception:
+            continue
+
+    return "llama-3.3-70b-versatile"
 
 
-selected_model = "llama3-8b-8192"
+selected_model = "llama-3.3-70b-versatile"
 
 with st.sidebar:
     st.header("⚙️ Configuration")
@@ -101,13 +101,9 @@ with st.sidebar:
             groq_key = user_key.strip()
 
     if groq_key:
-        available_models = fetch_groq_models(groq_key)
-        selected_model = st.selectbox(
-            "Active Groq Model",
-            available_models,
-            index=0,
-            help="Models retrieved live from your Groq account.",
-        )
+        with st.spinner("Detecting active Groq model..."):
+            selected_model = get_working_groq_model(groq_key)
+        st.caption(f"🤖 **Verified Active Model:** `{selected_model}`")
 
     student_id = st.text_input(
         "Student / User ID",
