@@ -146,14 +146,28 @@ def get_llm(model_id: str):
     if groq_key:
         try:
             from langchain_groq import ChatGroq
-            return ChatGroq(
+            llm = ChatGroq(
                 model_name=model_id,
                 api_key=groq_key,
                 temperature=0,
-            ), f"Groq Cloud ({model_id})"
-        except ImportError:
-            st.error("Please install langchain-groq: `pip install langchain-groq`")
-            st.stop()
+            )
+            # Verify that the model can be invoked without authorization or rate errors
+            llm.invoke("hello")
+            return llm, f"Groq Cloud ({model_id})"
+        except Exception as e:
+            st.sidebar.warning(f"⚠️ Groq `{model_id}` issue: {e}")
+            if model_id != "llama-3.1-8b-instant":
+                try:
+                    fallback_llm = ChatGroq(
+                        model_name="llama-3.1-8b-instant",
+                        api_key=groq_key,
+                        temperature=0,
+                    )
+                    fallback_llm.invoke("hello")
+                    return fallback_llm, "Groq Cloud (llama-3.1-8b-instant)"
+                except Exception as e2:
+                    st.sidebar.error(f"⚠️ Groq fallback failed: {e2}")
+            return None, "Groq Error"
     else:
         # Default to local Ollama
         try:

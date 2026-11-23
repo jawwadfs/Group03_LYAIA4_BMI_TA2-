@@ -147,10 +147,28 @@ def extract_and_save_facts(store, student: str, text: str) -> list[str]:
             save_user_fact(store, student, "diet", fact)
             found.append(fact)
 
+    # Exercise intensity preferences
+    high_impact = bool(re.search(r"\b(?:high[- ]impact|rigorous|vigorous|heavy|intense)\s+(?:exercise|workout|training|activity)|fine with high[- ]impact|can do rigorous\b", text_lower))
+    low_impact = bool(re.search(r"\b(?:low[- ]impact|gentle|light)\s+(?:exercise|workout|activity)|favor(?:s)? low[- ]impact\b", text_lower))
+
+    if high_impact and not re.search(r"\b(?:cannot|can't|unable to|not)\b.{0,15}\b(?:high[- ]impact|rigorous)\b", text_lower):
+        fact = "High-impact & rigorous exercise capable"
+        save_user_fact(store, student, "exercise_preference", fact)
+        found.append(fact)
+    elif low_impact and not re.search(r"\b(?:don't|do not|never)\s+favor low[- ]impact\b", text_lower):
+        fact = "Favors low-impact exercises"
+        save_user_fact(store, student, "exercise_preference", fact)
+        found.append(fact)
+
     # Physical limitations & injuries
+    def _injury_fact(m):
+        if high_impact:
+            return f"Past injury: {m.group(1)} (fully recovered / high-impact capable)"
+        return f"Reports {m.group(1)} (favors low-impact exercises)"
+
     limit_patterns = [
         (r"\b((?:hip|knee|joint|back|leg|ankle|foot|shoulder|neck)\s+pain|arthritis|asthma|injured\s+(?:knee|hip|leg|back|ankle)|bad\s+(?:back|knee|hip)|fracture|recovering from\s+(?:a\s+)?fracture)\b",
-         lambda m: f"Reports {m.group(1)} (favors low-impact exercises)"),
+         _injury_fact),
         (r"\b(?:cannot|can't|unable to|hard to|difficult (?:for me )?to|struggle to)\s+run\b",
          lambda m: "Cannot run (needs walking/swimming/cycling)"),
     ]
