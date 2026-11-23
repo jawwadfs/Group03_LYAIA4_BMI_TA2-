@@ -108,7 +108,7 @@ class Workers:
 
         w_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:kg|kgs|kilos?|kilograms?)\b", text, re.I)
         h_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:cm|centimet\w*)\b", text, re.I)
-        wants_ideal = bool(re.search(r"\b(ideal|target|healthy)\s+weight\b", text, re.I))
+        wants_ideal = bool(re.search(r"\b(ideal|target|healthy)\s+weight\b|\bweight\s+range\b|\bwhat should i weigh\b", text, re.I))
 
         # 1. Attempt LLM tool execution
         try:
@@ -120,8 +120,8 @@ class Workers:
                     args = m.tool_calls[0]["args"]
                 if isinstance(m, ToolMessage):
                     outputs.append(m.content)
-            # If user did not provide weight and asked for ideal weight, discard any phantom BMI call
-            if not w_match and wants_ideal:
+            # If user did not provide weight in this turn, NEVER return a phantom BMI calculation
+            if not w_match:
                 outputs = [o for o in outputs if not o.startswith("BMI:")]
             if outputs:
                 return {"tool_output": "\n".join(outputs), "args": args}
@@ -139,7 +139,7 @@ class Workers:
             bmi_out = calculate_bmi_category.invoke({"weight_kg": weight, "height_cm": height})
             outputs.append(bmi_out)
 
-        if (wants_ideal or (not outputs and not weight)) and height > 0:
+        if (wants_ideal or (not outputs and not weight and height > 0)) and height > 0:
             ideal_out = calculate_ideal_weight_range.invoke({"height_cm": height})
             outputs.append(ideal_out)
 
