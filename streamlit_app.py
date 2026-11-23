@@ -50,7 +50,7 @@ groq_key = (
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_groq_models(api_key: str) -> list[str]:
-    """Query Groq API directly to retrieve the exact models available for this key."""
+    """Query Groq API directly to retrieve standard chat models available for this key."""
     import httpx
     try:
         r = httpx.get(
@@ -60,15 +60,27 @@ def fetch_groq_models(api_key: str) -> list[str]:
         )
         if r.status_code == 200:
             data = r.json()
+            # Filter strictly: exclude partner models with '/' and non-chat models
             models = [
                 m["id"] for m in data.get("data", [])
-                if not any(skip in m["id"].lower() for skip in ["whisper", "vision", "embed", "tts", "guard"])
+                if "/" not in m["id"]  # Exclude third-party partner org models (e.g. canopylabs/...)
+                and not any(skip in m["id"].lower() for skip in ["whisper", "vision", "embed", "tts", "guard", "audio", "orpheus", "prompt"])
+                and any(valid in m["id"].lower() for valid in ["llama", "gemma", "mixtral", "qwen"])
             ]
             if models:
-                for p in ["llama-3.1-8b-instant", "llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768"]:
-                    if p in models:
-                        models.remove(p)
-                        models.insert(0, p)
+                # Prioritize 70b / 8b Llama models
+                def _rank(m_id):
+                    m_lower = m_id.lower()
+                    if "70b" in m_lower and "llama" in m_lower:
+                        return 0
+                    if "8b" in m_lower and "llama" in m_lower:
+                        return 1
+                    if "llama" in m_lower:
+                        return 2
+                    if "mixtral" in m_lower:
+                        return 3
+                    return 4
+                models.sort(key=_rank)
                 return models
     except Exception:
         pass
