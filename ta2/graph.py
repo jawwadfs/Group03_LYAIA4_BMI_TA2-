@@ -169,9 +169,13 @@ def build_graph(workers, saver, store, max_hops: int = MAX_HOPS):
             return {"draft": draft, "facts": facts, "log": _log(s, f"advisor: recorded facts ({fact_str})")}
 
         data = s["tool_output"] if s["tool_output"] else ""
-        question = s["user_text"]
-        if s["tool_output"].startswith("BMI:"):   # a measurement, not a question: ask about its result
-            question = f"My BMI result is: {s['tool_output']} What does this mean and what general guidance applies?"
+        if s["tool_output"].startswith("BMI:"):
+            if is_question:
+                question = f"{s['user_text']} (Context: {s['tool_output']})"
+            else:
+                question = f"My BMI result is: {s['tool_output']} What does this mean and what general guidance applies?"
+        else:
+            question = s["user_text"]
         trend_context = s['trend'] if s["tool_output"].startswith("BMI:") else ""
         draft = workers.advise(question, f"{data}\n{trend_context}{facts_context}".strip())
         return {"draft": draft, "facts": facts, "log": _log(s, "advisor: draft written (RAG)")}

@@ -163,7 +163,9 @@ class Workers:
         except Exception:
             # Resilient fallback: ground cleanly in guidelines without raw headers
             if docs:
-                body = docs[0].page_content.split(":", 1)[-1].strip() if ":" in docs[0].page_content else docs[0].page_content
+                adult_docs = [d for d in docs if "children" not in d.metadata.get("source", "").lower()]
+                best_doc = adult_docs[0] if adult_docs else docs[0]
+                body = best_doc.page_content.split(":", 1)[-1].strip() if ":" in best_doc.page_content else best_doc.page_content
                 return f"{body}\n\nSources consulted: {sources}"
             return "BMI is a screening measure. Consult a doctor or registered dietitian for personal guidance."
 
