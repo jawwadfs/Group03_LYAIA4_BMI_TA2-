@@ -148,8 +148,8 @@ def extract_and_save_facts(store, student: str, text: str) -> list[str]:
             found.append(fact)
 
     # Exercise intensity preferences
-    high_impact = bool(re.search(r"\b(?:high[- ]impact|rigorous|vigorous|heavy|intense)\s+(?:exercise|workout|training|activity)|fine with high[- ]impact|can do rigorous\b", text_lower))
-    low_impact = bool(re.search(r"\b(?:low[- ]impact|gentle|light)\s+(?:exercise|workout|activity)|favor(?:s)? low[- ]impact\b", text_lower))
+    high_impact = bool(re.search(r"\b(?:high[- ]impact|rigorous|vigorous|heavy|intense)\s*(?:exercise|workout|training|activity)?|fine with high[- ]impact|can do rigorous|prefer high[- ]impact\b", text_lower))
+    low_impact = bool(re.search(r"\b(?:low[- ]impact|gentle|light)\s*(?:exercise|workout|activity)?|favor(?:s)? low[- ]impact\b", text_lower))
 
     if high_impact and not re.search(r"\b(?:cannot|can't|unable to|not)\b.{0,15}\b(?:high[- ]impact|rigorous)\b", text_lower):
         fact = "High-impact & rigorous exercise capable"
