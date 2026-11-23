@@ -373,6 +373,13 @@ def test_semantic_episodic_memory(tmp_path):
     assert "Vegetarian" in formatted
     assert "knee pain" in formatted.lower() or "cannot run" in formatted.lower()
 
+    # Turn 2: non-vegetarian and hip pain
+    text2 = "I am a non vegetarian and you know I suffer from hip pain."
+    found2 = extract_and_save_facts(store, "bob", text2)
+    assert any("Non-vegetarian" in f for f in found2)
+    assert not any(f == "Vegetarian diet" for f in found2)
+    assert any("hip pain" in f.lower() for f in found2)
+
     # Fact persistence across re-opening store
     saver2, store2 = open_db(str(tmp_path / "mem.sqlite"))
     facts2 = get_user_facts(store2, "alice")

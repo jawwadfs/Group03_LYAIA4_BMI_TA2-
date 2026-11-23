@@ -135,18 +135,24 @@ def extract_and_save_facts(store, student: str, text: str) -> list[str]:
     text_lower = text.lower()
     found = []
 
-    # Diet preferences
-    diet_m = re.search(r"\b(vegetarian|vegan|plant-based|pescatarian|keto|ketogenic|halal|kosher|gluten-free)\b", text_lower)
-    if diet_m:
-        fact = diet_m.group(1).title() + " diet"
+    # Diet preferences (check non-vegetarian BEFORE vegetarian to prevent false matches)
+    if re.search(r"\b(?:non[- ]vegetarian|non[- ]veg|eats? meat|omnivore)\b", text_lower):
+        fact = "Non-vegetarian diet"
         save_user_fact(store, student, "diet", fact)
         found.append(fact)
+    else:
+        diet_m = re.search(r"\b(vegetarian|vegan|plant-based|pescatarian|keto|ketogenic|halal|kosher|gluten-free)\b", text_lower)
+        if diet_m:
+            fact = diet_m.group(1).title() + " diet"
+            save_user_fact(store, student, "diet", fact)
+            found.append(fact)
 
-    # Physical limitations
+    # Physical limitations & injuries
     limit_patterns = [
-        (r"\b(knee pain|joint pain|back pain|arthritis|asthma|injured knee|bad back)\b",
+        (r"\b((?:hip|knee|joint|back|leg|ankle|foot|shoulder|neck)\s+pain|arthritis|asthma|injured\s+(?:knee|hip|leg|back|ankle)|bad\s+(?:back|knee|hip)|fracture|recovering from\s+(?:a\s+)?fracture)\b",
          lambda m: f"Reports {m.group(1)} (favors low-impact exercises)"),
-        (r"\b(?:cannot|can't) run\b", lambda m: "Cannot run (needs walking/swimming/cycling)"),
+        (r"\b(?:cannot|can't|unable to|hard to|difficult (?:for me )?to|struggle to)\s+run\b",
+         lambda m: "Cannot run (needs walking/swimming/cycling)"),
     ]
     for p, fn in limit_patterns:
         m = re.search(p, text_lower)
