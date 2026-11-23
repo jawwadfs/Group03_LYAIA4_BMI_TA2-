@@ -73,11 +73,12 @@ def get_llm():
     if groq_key:
         try:
             from langchain_groq import ChatGroq
+            # llama-3.1-8b-instant is universally supported on all free Groq accounts with tool calling
             return ChatGroq(
-                model_name="llama-3.3-70b-versatile",
+                model_name="llama-3.1-8b-instant",
                 api_key=groq_key,
                 temperature=0,
-            ), "Groq Cloud (llama-3.3-70b)"
+            ), "Groq Cloud (llama-3.1-8b-instant)"
         except ImportError:
             st.error("Please install langchain-groq: `pip install langchain-groq`")
             st.stop()
