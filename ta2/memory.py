@@ -177,3 +177,18 @@ def extract_and_save_facts(store, student: str, text: str) -> list[str]:
             found.append(fact)
 
     return found
+
+
+def clear_user_memory(db_path: str, student: str) -> None:
+    """Wipe all long-term memory (measurements, profile, facts) and thread checkpoints for a user."""
+    conn = sqlite3.connect(db_path)
+    try:
+        with conn:
+            conn.execute("DELETE FROM store WHERE prefix LIKE ?", (f"{student}.%",))
+            conn.execute("DELETE FROM checkpoints WHERE thread_id LIKE ?", (f"{student}%",))
+            conn.execute("DELETE FROM writes WHERE thread_id LIKE ?", (f"{student}%",))
+    except Exception:
+        pass
+    finally:
+        conn.close()
+

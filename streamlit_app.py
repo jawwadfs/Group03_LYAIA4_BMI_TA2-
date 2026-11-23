@@ -19,6 +19,7 @@ from ta2.agents import Workers
 from ta2.config import DB_PATH, MAX_HOPS, RAG_K
 from ta2.graph import build_graph, turn_input
 from ta2.memory import (
+    clear_user_memory,
     get_history,
     get_profile,
     get_user_facts,
@@ -102,6 +103,23 @@ with st.sidebar:
         value="demo",
         help="Each user has an isolated memory thread in SQLite.",
     )
+
+    c_btn1, c_btn2 = st.columns(2)
+    with c_btn1:
+        if st.button("🗑️ Reset Chat", use_container_width=True, help="Clear chat messages from screen"):
+            st.session_state.messages = []
+            st.session_state.pending_review = False
+            st.session_state.review_info = None
+            st.session_state.last_processed_audio_hash = None
+            st.rerun()
+    with c_btn2:
+        if st.button("🧹 Clear All Data", use_container_width=True, help="Delete all BMI history, saved facts, and checkpoints for this User ID"):
+            clear_user_memory(DB_PATH, student_id)
+            st.session_state.messages = []
+            st.session_state.pending_review = False
+            st.session_state.review_info = None
+            st.session_state.last_processed_audio_hash = None
+            st.rerun()
 
     st.divider()
     st.subheader("📈 BMI Progression")
