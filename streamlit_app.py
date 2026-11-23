@@ -36,6 +36,37 @@ groq_key = (
     else os.environ.get("GROQ_API_KEY", "")
 )
 
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_groq_models(api_key: str) -> list[str]:
+    """Query Groq API directly to retrieve the exact models available for this key."""
+    import httpx
+    try:
+        r = httpx.get(
+            "https://api.groq.com/openai/v1/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=5.0,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            models = [
+                m["id"] for m in data.get("data", [])
+                if not any(skip in m["id"].lower() for skip in ["whisper", "vision", "embed", "tts", "guard"])
+            ]
+            if models:
+                # Prioritize standard tool-capable models if available
+                for p in ["llama-3.1-8b-instant", "llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768"]:
+                    if p in models:
+                        models.remove(p)
+                        models.insert(0, p)
+                return models
+    except Exception:
+        pass
+    return ["llama3-8b-8192", "llama3-70b-8192", "mixtral-8x7b-32768", "gemma2-9b-it"]
+
+
+selected_model = "llama3-8b-8192"
+
 with st.sidebar:
     st.header("⚙️ Configuration")
     if not groq_key:
@@ -46,6 +77,15 @@ with st.sidebar:
         )
         if user_key:
             groq_key = user_key.strip()
+
+    if groq_key:
+        available_models = fetch_groq_models(groq_key)
+        selected_model = st.selectbox(
+            "Active Groq Model",
+            available_models,
+            index=0,
+            help="Models retrieved live from your Groq account.",
+        )
 
     student_id = st.text_input(
         "Student ID",
@@ -68,17 +108,16 @@ with st.sidebar:
     )
 
 
-def get_llm():
+def get_llm(model_id: str):
     """Instantiate either Groq Cloud LLM or Local Ollama ChatModel."""
     if groq_key:
         try:
             from langchain_groq import ChatGroq
-            # llama-3.1-8b-instant is universally supported on all free Groq accounts with tool calling
             return ChatGroq(
-                model_name="llama-3.1-8b-instant",
+                model_name=model_id,
                 api_key=groq_key,
                 temperature=0,
-            ), "Groq Cloud (llama-3.1-8b-instant)"
+            ), f"Groq Cloud ({model_id})"
         except ImportError:
             st.error("Please install langchain-groq: `pip install langchain-groq`")
             st.stop()
@@ -97,8 +136,8 @@ def get_llm():
 
 # Cache graph across sessions
 @st.cache_resource(show_spinner=False)
-def init_agent(key_str: str):
-    llm, backend_name = get_llm()
+def init_agent(key_str: str, model_id: str):
+    llm, backend_name = get_llm(model_id)
     if llm is None:
         return None, None, backend_name
     saver, store = open_db(DB_PATH)
@@ -107,7 +146,7 @@ def init_agent(key_str: str):
     return graph, store, backend_name
 
 
-graph, store, backend_name = init_agent(groq_key)
+graph, store, backend_name = init_agent(groq_key, selected_model)
 
 if graph is None:
     st.warning(
