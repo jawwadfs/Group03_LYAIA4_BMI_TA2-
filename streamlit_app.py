@@ -50,11 +50,14 @@ groq_key = (
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_working_groq_model(api_key: str) -> str:
-    """Auto-detect the first active, non-decommissioned production model on this Groq account."""
+    """Auto-detect the first active model on this Groq account that supports tool calling."""
     import httpx
     from langchain_groq import ChatGroq
+    from ta1.bmi_tool import calculate_bmi_category
 
-    candidates = []
+    preferred = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "qwen-2.5-32b"]
+    live_models = []
+
     # 1. Fetch live models list from Groq API
     try:
         r = httpx.get(
@@ -65,21 +68,21 @@ def get_working_groq_model(api_key: str) -> str:
         if r.status_code == 200:
             for item in r.json().get("data", []):
                 mid = item.get("id", "")
-                if "/" not in mid and not any(skip in mid.lower() for skip in ["whisper", "vision", "embed", "tts", "guard", "audio", "orpheus"]):
-                    candidates.append(mid)
+                if "/" not in mid and not any(skip in mid.lower() for skip in ["whisper", "vision", "embed", "tts", "guard", "audio", "orpheus", "gemma"]):
+                    live_models.append(mid)
     except Exception:
         pass
 
-    # 2. Priority production models
-    for m in ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "qwen-2.5-32b", "gemma2-9b-it", "mixtral-8x7b-32768"]:
+    candidates = [p for p in preferred]
+    for m in live_models:
         if m not in candidates:
-            candidates.insert(0, m)
+            candidates.append(m)
 
-    # 3. Test candidates until one succeeds
+    # 2. Test candidates specifically with a bound tool to ensure tool-calling support
     for cand in candidates:
         try:
-            test_llm = ChatGroq(model_name=cand, api_key=api_key, temperature=0, max_tokens=5)
-            test_llm.invoke("ping")
+            test_llm = ChatGroq(model_name=cand, api_key=api_key, temperature=0).bind_tools([calculate_bmi_category])
+            test_llm.invoke([{"role": "user", "content": "ping"}])
             return cand
         except Exception:
             continue
