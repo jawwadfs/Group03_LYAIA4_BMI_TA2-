@@ -48,9 +48,9 @@ groq_key = (
 )
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def get_working_groq_model(api_key: str) -> str:
-    """Auto-detect the first active chat model on this Groq account."""
+@st.cache_data(ttl=600, show_spinner=False)
+def get_available_groq_models(api_key: str) -> list[str]:
+    """Fetch all active chat models for this Groq key."""
     import httpx
     try:
         r = httpx.get(
@@ -59,18 +59,23 @@ def get_working_groq_model(api_key: str) -> str:
             timeout=5.0,
         )
         if r.status_code == 200:
-            for item in r.json().get("data", []):
-                mid = item.get("id", "")
-                if "/" not in mid and not any(skip in mid.lower() for skip in ["whisper", "vision", "embed", "tts", "guard", "audio", "orpheus"]):
-                    if any(ok in mid.lower() for ok in ["llama", "qwen", "mistral"]):
-                        return mid
+            data = r.json()
+            models = [
+                m.get("id", "") for m in data.get("data", [])
+                if "/" not in m.get("id", "") and not any(skip in m.get("id", "").lower() for skip in ["whisper", "vision", "embed", "tts", "guard", "audio", "orpheus"])
+            ]
+            if models:
+                for prio in ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "qwen-2.5-32b"]:
+                    if prio in models:
+                        models.remove(prio)
+                        models.insert(0, prio)
+                return models
     except Exception:
         pass
+    return ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"]
 
-    return "llama-3.3-70b-versatile"
 
-
-selected_model = "llama-3.3-70b-versatile"
+selected_model = "llama-3.1-8b-instant"
 
 with st.sidebar:
     st.header("⚙️ Configuration")
@@ -84,9 +89,13 @@ with st.sidebar:
             groq_key = user_key.strip()
 
     if groq_key:
-        with st.spinner("Detecting active Groq model..."):
-            selected_model = get_working_groq_model(groq_key)
-        st.caption(f"🤖 **Verified Active Model:** `{selected_model}`")
+        models_list = get_available_groq_models(groq_key)
+        selected_model = st.selectbox(
+            "Active Groq Model",
+            models_list,
+            index=0,
+            help="Choose from the models enabled on your Groq key.",
+        )
 
     student_id = st.text_input(
         "Student / User ID",

@@ -151,9 +151,22 @@ def build_graph(workers, saver, store, max_hops: int = MAX_HOPS):
         return {"saved": True, "trend": trend, "log": _log(s, f"memory: saved; {trend[:70]}")}
 
     def advisor(s: State, store: BaseStore):
-        extract_and_save_facts(store, s["student_id"], s["user_text"])
+        new_facts = extract_and_save_facts(store, s["student_id"], s["user_text"])
         facts = format_facts(get_user_facts(store, s["student_id"]))
         facts_context = f"\nUser profile facts: {facts}" if facts else ""
+
+        is_question = bool(re.search(r"\?|what|how|why|when|where|can i|should i|tell me|explain|target|ideal", s["user_text"], re.I))
+        has_measurement = bool(s["tool_output"].startswith("BMI:"))
+
+        # If user shared qualitative health facts without asking a question or entering measurements:
+        if new_facts and not is_question and not has_measurement:
+            fact_str = ", ".join(new_facts)
+            draft = (
+                f"Got it! I've saved to your profile: **{fact_str}**.\n\n"
+                "I will take this context into account for your nutrition and physical activity recommendations. "
+                "Feel free to share your height and weight to check your BMI, or ask any health questions!"
+            )
+            return {"draft": draft, "facts": facts, "log": _log(s, f"advisor: recorded facts ({fact_str})")}
 
         data = s["tool_output"] if s["tool_output"].startswith("BMI:") else s.get("last_bmi", "")
         question = s["user_text"]

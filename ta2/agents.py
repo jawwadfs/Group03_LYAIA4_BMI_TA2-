@@ -157,9 +157,10 @@ class Workers:
                 return f"{answer}\n\nSources consulted: {sources}"
             return answer
         except Exception:
-            # Resilient fallback: ground directly in retrieved guidelines
+            # Resilient fallback: ground cleanly in guidelines without raw headers
             if docs:
-                return f"{docs[0].page_content}\n\nSources consulted: {sources}"
+                body = docs[0].page_content.split(":", 1)[-1].strip() if ":" in docs[0].page_content else docs[0].page_content
+                return f"{body}\n\nSources consulted: {sources}"
             return "BMI is a screening measure. Consult a doctor or registered dietitian for personal guidance."
 
     def judge(self, text: str) -> bool:
