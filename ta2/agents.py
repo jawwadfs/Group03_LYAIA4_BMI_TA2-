@@ -22,7 +22,8 @@ You have access to two tools:
 
 Rules:
 - If the user gives weight and height, call `calculate_bmi_category`.
-- If the user asks for their ideal, target, or healthy weight range, call `calculate_ideal_weight_range`.
+- If the user asks for ideal, target, or healthy weight range, call `calculate_ideal_weight_range`.
+- If the user ONLY asks for ideal/healthy weight range and provides no weight, call ONLY `calculate_ideal_weight_range`. Do NOT call `calculate_bmi_category`.
 - If both apply, you may call both tools.
 - If a line in brackets gives a stored height and the user only gave a weight, use the stored height.
 - Never compute BMI or weight ranges yourself.
@@ -105,6 +106,10 @@ class Workers:
         use_stored = profile.get("height_cm") and not HAS_HEIGHT.search(text)
         prefix = f"[Stored height: {profile['height_cm']} cm]\n" if use_stored else ""
 
+        w_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:kg|kgs|kilos?|kilograms?)\b", text, re.I)
+        h_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:cm|centimet\w*)\b", text, re.I)
+        wants_ideal = bool(re.search(r"\b(ideal|target|healthy)\s+weight\b", text, re.I))
+
         # 1. Attempt LLM tool execution
         try:
             res = self.calc_agent.invoke({"messages": [{"role": "user", "content": prefix + text}]})
@@ -115,27 +120,26 @@ class Workers:
                     args = m.tool_calls[0]["args"]
                 if isinstance(m, ToolMessage):
                     outputs.append(m.content)
+            # If user did not provide weight and asked for ideal weight, discard any phantom BMI call
+            if not w_match and wants_ideal:
+                outputs = [o for o in outputs if not o.startswith("BMI:")]
             if outputs:
                 return {"tool_output": "\n".join(outputs), "args": args}
         except Exception:
             pass
 
         # 2. Resilient deterministic fallback: extract numbers and execute tools directly
-        w_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:kg|kgs|kilos?|kilograms?)\b", text, re.I)
-        h_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:cm|centimet\w*)\b", text, re.I)
-
-        weight = float(w_match.group(1)) if w_match else float(profile.get("weight_kg", 0.0))
+        weight = float(w_match.group(1)) if w_match else 0.0
         height = float(h_match.group(1)) if h_match else float(profile.get("height_cm", 0.0))
 
-        wants_ideal = bool(re.search(r"ideal|target|healthy\s+weight", text, re.I))
         outputs = []
         args = {"weight_kg": weight, "height_cm": height}
 
-        if weight > 0 and height > 0:
+        if weight > 0 and height > 0 and not (wants_ideal and not w_match):
             bmi_out = calculate_bmi_category.invoke({"weight_kg": weight, "height_cm": height})
             outputs.append(bmi_out)
 
-        if (wants_ideal or not outputs) and height > 0:
+        if (wants_ideal or (not outputs and not weight)) and height > 0:
             ideal_out = calculate_ideal_weight_range.invoke({"height_cm": height})
             outputs.append(ideal_out)
 

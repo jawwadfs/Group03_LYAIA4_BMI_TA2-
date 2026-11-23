@@ -209,7 +209,9 @@ def test_guard_allows_harmless_do_i_have(prompt):
     "Do I have hypertension from my weight?",
     "Do I have a heart disease?",
     "What illness do i have? I wigh 82 kg and i am 160 cm tall",
-    "What disease could I have?",
+    "What illnesses do I have? I weigh 82 kilograms and I am 160 centimeters tall.",
+    "What diseases could I have?",
+    "What conditions do I have?",
     "What condition is causing my weight gain?",
 ])
 def test_guard_still_blocks_disease_do_i_have(prompt):
@@ -334,6 +336,23 @@ def test_calculate_ideal_weight_range():
     assert "Error:" in calculate_ideal_weight_range.invoke({"height_cm": 0})
     assert "Error:" in calculate_ideal_weight_range.invoke({"height_cm": -10})
     assert "Error:" in calculate_ideal_weight_range.invoke({"height_cm": 350})
+
+
+def test_workers_calculate_ideal_weight_without_phantom_bmi():
+    from ta2.agents import Workers
+    from langchain_core.embeddings import DeterministicFakeEmbedding
+    from ta2.rag import get_vectorstore
+    vs = get_vectorstore(embeddings=DeterministicFakeEmbedding(size=384))
+    workers = Workers(vs)
+
+    # User profile has stored weight 82 kg and height 160 cm from prior turn
+    profile = {"weight_kg": 82.0, "height_cm": 160.0}
+
+    # User only asks for ideal weight range for 175 cm
+    res = workers.calculate("What's the ideal weight range for someone who is 175 cm tall?", profile)
+    out = res.get("tool_output", "")
+    assert "Ideal weight range for 175 cm" in out
+    assert "BMI:" not in out, f"Should not calculate BMI from stored weight when only asking for ideal weight! Got: {out}"
 
 
 # --- Semantic episodic memory tests ---

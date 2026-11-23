@@ -168,11 +168,12 @@ def build_graph(workers, saver, store, max_hops: int = MAX_HOPS):
             )
             return {"draft": draft, "facts": facts, "log": _log(s, f"advisor: recorded facts ({fact_str})")}
 
-        data = s["tool_output"] if s["tool_output"].startswith("BMI:") else s.get("last_bmi", "")
+        data = s["tool_output"] if s["tool_output"] else ""
         question = s["user_text"]
         if s["tool_output"].startswith("BMI:"):   # a measurement, not a question: ask about its result
             question = f"My BMI result is: {s['tool_output']} What does this mean and what general guidance applies?"
-        draft = workers.advise(question, f"{data}\n{s['trend']}{facts_context}".strip())
+        trend_context = s['trend'] if s["tool_output"].startswith("BMI:") else ""
+        draft = workers.advise(question, f"{data}\n{trend_context}{facts_context}".strip())
         return {"draft": draft, "facts": facts, "log": _log(s, "advisor: draft written (RAG)")}
 
     def guard_out(s: State):
@@ -203,8 +204,8 @@ def build_graph(workers, saver, store, max_hops: int = MAX_HOPS):
                      "Please check the values and try again.")
         else:
             status = "ok"
-            ok = s["tool_output"].startswith("BMI:")
-            final = "\n".join(x for x in [s["tool_output"] if ok else "", s["draft"], s["trend"]] if x)
+            trend_part = s["trend"] if s["tool_output"].startswith("BMI:") else ""
+            final = "\n\n".join(x for x in [s["tool_output"], s["draft"], trend_part] if x)
         upd = {"final": final, "status": status or "ok", "messages": [AIMessage(final)],
                "log": _log(s, f"finish: status={status or 'ok'}")}
         if s["tool_output"].startswith("BMI:") and status == "ok":

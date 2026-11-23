@@ -273,24 +273,29 @@ if "review_info" not in st.session_state:
 voice_query = None
 if hasattr(st, "audio_input") and groq_key:
     with st.expander("🎙️ Voice Input (Speak measurements or questions)", expanded=False):
-        audio_val = st.audio_input("Record voice query")
+        audio_val = st.audio_input("Record voice query", key="voice_recorder")
         if audio_val is not None:
-            import httpx
-            try:
-                with st.spinner("Transcribing via Groq Whisper-large-v3..."):
-                    audio_bytes = audio_val.read()
-                    resp = httpx.post(
-                        "https://api.groq.com/openai/v1/audio/transcriptions",
-                        headers={"Authorization": f"Bearer {groq_key}"},
-                        files={"file": ("recording.wav", audio_bytes, "audio/wav")},
-                        data={"model": "whisper-large-v3"},
-                        timeout=15.0,
-                    )
-                    if resp.status_code == 200:
-                        voice_query = resp.json().get("text", "").strip()
-                        st.success(f"🗣️ Transcribed: *\"{voice_query}\"*")
-            except Exception as e:
-                st.warning(f"Voice note: {e}")
+            audio_bytes = audio_val.getvalue() if hasattr(audio_val, "getvalue") else audio_val.read()
+            if audio_bytes:
+                import hashlib
+                audio_hash = hashlib.md5(audio_bytes).hexdigest()
+                if st.session_state.get("last_processed_audio_hash") != audio_hash:
+                    import httpx
+                    try:
+                        with st.spinner("Transcribing via Groq Whisper-large-v3..."):
+                            resp = httpx.post(
+                                "https://api.groq.com/openai/v1/audio/transcriptions",
+                                headers={"Authorization": f"Bearer {groq_key}"},
+                                files={"file": ("recording.wav", audio_bytes, "audio/wav")},
+                                data={"model": "whisper-large-v3"},
+                                timeout=15.0,
+                            )
+                            if resp.status_code == 200:
+                                voice_query = resp.json().get("text", "").strip()
+                                st.session_state.last_processed_audio_hash = audio_hash
+                                st.success(f"🗣️ Transcribed: *\"{voice_query}\"*")
+                    except Exception as e:
+                        st.warning(f"Voice note: {e}")
 
 # Render chat history
 for msg in st.session_state.messages:
@@ -313,7 +318,9 @@ if st.session_state.pending_review and st.session_state.review_info:
             res = graph.invoke(Command(resume="yes"), cfg)
             st.session_state.pending_review = False
             st.session_state.review_info = None
-            st.session_state.messages.append({"role": "assistant", "content": res.get("final", "Approved.")})
+            final_text = res.get("final", "Approved.")
+            output = f"{final_text}\n\n---\n*Status: `ok` (Approved by Human Reviewer)*"
+            st.session_state.messages.append({"role": "assistant", "content": output})
             st.rerun()
     with c2:
         if st.button("❌ Reject Reading", use_container_width=True):
@@ -322,35 +329,38 @@ if st.session_state.pending_review and st.session_state.review_info:
             res = graph.invoke(Command(resume="no"), cfg)
             st.session_state.pending_review = False
             st.session_state.review_info = None
-            st.session_state.messages.append({"role": "assistant", "content": res.get("final", "Rejected.")})
-            st.rerun()
-
-# Determine incoming user query (either from chat box or voice)
-chat_input_val = st.chat_input("Ask advice or enter measurements (e.g. 'I weigh 70 kg and I am 175 cm')")
-active_prompt = voice_query or chat_input_val
-
-if active_prompt:
-    st.session_state.messages.append({"role": "user", "content": active_prompt})
-    with st.chat_message("user"):
-        st.markdown(active_prompt)
-
-    thread = f"{student_id}-main"
-    cfg = {"configurable": {"thread_id": thread}}
-
-    with st.chat_message("assistant"):
-        with st.spinner("Processing through multi-agent supervisor..."):
-            result = graph.invoke(turn_input(active_prompt, student_id), cfg)
-
-        if result.get("__interrupt__"):
-            info = result["__interrupt__"][0].value
-            st.session_state.pending_review = True
-            st.session_state.review_info = info
-            st.rerun()
-        else:
-            final_text = result.get("final", "")
-            status = result.get("status", "ok")
-            hops = result.get("hops", 0)
-
-            output = f"{final_text}\n\n---\n*Status: `{status}` · Hops: {hops}/{MAX_HOPS}*"
-            st.markdown(output)
+            final_text = res.get("final", "A human reviewer rejected this reading, so it was not stored.")
+            output = f"{final_text}\n\n---\n*Status: `rejected_by_human`*"
             st.session_state.messages.append({"role": "assistant", "content": output})
+            st.rerun()
+
+# Determine incoming user query (only when no review is pending)
+if not st.session_state.pending_review:
+    chat_input_val = st.chat_input("Ask advice or enter measurements (e.g. 'I weigh 70 kg and I am 175 cm')")
+    active_prompt = voice_query or chat_input_val
+
+    if active_prompt:
+        st.session_state.messages.append({"role": "user", "content": active_prompt})
+        with st.chat_message("user"):
+            st.markdown(active_prompt)
+
+        thread = f"{student_id}-main"
+        cfg = {"configurable": {"thread_id": thread}}
+
+        with st.chat_message("assistant"):
+            with st.spinner("Processing through multi-agent supervisor..."):
+                result = graph.invoke(turn_input(active_prompt, student_id), cfg)
+
+            if result.get("__interrupt__"):
+                info = result["__interrupt__"][0].value
+                st.session_state.pending_review = True
+                st.session_state.review_info = info
+                st.rerun()
+            else:
+                final_text = result.get("final", "")
+                status = result.get("status", "ok")
+                hops = result.get("hops", 0)
+
+                output = f"{final_text}\n\n---\n*Status: `{status}` · Hops: {hops}/{MAX_HOPS}*"
+                st.markdown(output)
+                st.session_state.messages.append({"role": "assistant", "content": output})

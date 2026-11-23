@@ -10,11 +10,11 @@ I = re.I
 INJECTION = [r"\b(ignore|disregard|forget)\b.{0,30}\b(rules|instructions|prompt|guidelines)\b",
              r"\b(system prompt|developer mode|jailbreak|you are now|override)\b"]
 DIAGNOSIS_IN = [
-    r"\bdiagnos(e|is)\b",
-    r"\bwhat (illness|disease|condition|disorder)\b",
+    r"\bdiagnos(e|is|ing)\b",
+    r"\bwhat (illness(?:es)?|diseases?|conditions?|disorders?)\b",
     # Only block "do I have" when followed by a medical condition term (prevents false-positives
     # on harmless questions like "do I have to exercise every day?")
-    r"\bdo i have\b.{0,50}\b(diabetes|hypertension|disease|disorder|cancer|syndrome|obesity|condition|illness)\b",
+    r"\bdo i have\b.{0,50}\b(diabetes|hypertension|diseases?|disorders?|cancer|syndromes?|obesity|conditions?|illnesses?)\b",
     r"\bam i (sick|ill|diabetic)\b",
 ]
 DIAGNOSIS_OUT = [r"\byou (have|suffer from|are suffering from|are diagnosed with)\b.{0,25}"
