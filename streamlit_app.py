@@ -1,11 +1,15 @@
 """streamlit_app.py - Streamlit web interface for TA2 BMI Advisor.
 
 Dual-Mode Architecture:
-1. Cloud Deployment (Streamlit Cloud): Uses Groq API (llama-3.3-70b / qwen-2.5-32b) for 24/7 uptime.
+1. Cloud Deployment (Streamlit Cloud): Uses Groq API for 24/7 uptime.
 2. Local Development: Automatically detects local Ollama (qwen2.5:3b).
 
-Run locally:
-    streamlit run streamlit_app.py
+Features:
+- Multi-agent supervisor workflow with human-on-the-loop review
+- Interactive Plotly BMI Zone progression charts
+- Semantic episodic memory (qualitative user context)
+- One-click print-ready clinical screening summary export
+- Voice input with Groq Whisper-large-v3 transcription
 """
 import os
 import streamlit as st
@@ -14,8 +18,16 @@ from langgraph.types import Command
 from ta2.agents import Workers
 from ta2.config import DB_PATH, MAX_HOPS, RAG_K
 from ta2.graph import build_graph, turn_input
-from ta2.memory import get_history, open_db, trend_chart, trend_report
+from ta2.memory import (
+    get_history,
+    get_profile,
+    get_user_facts,
+    open_db,
+    trend_chart,
+    trend_report,
+)
 from ta2.rag import get_vectorstore
+from ta2.report import generate_doctor_report_html
 
 st.set_page_config(
     page_title="BMI & Health Advisor — TA2",
@@ -29,7 +41,6 @@ st.caption("Agentic AI System · LangGraph · ChromaDB RAG · SQLite Memory · D
 # ---------------------------------------------------------------------------
 # Backend Selection: Groq Cloud (24/7) or Local Ollama
 # ---------------------------------------------------------------------------
-# Look for Groq API key in secrets, env, or sidebar
 groq_key = (
     st.secrets.get("GROQ_API_KEY", "")
     if hasattr(st, "secrets") and "GROQ_API_KEY" in st.secrets
@@ -54,7 +65,6 @@ def fetch_groq_models(api_key: str) -> list[str]:
                 if not any(skip in m["id"].lower() for skip in ["whisper", "vision", "embed", "tts", "guard"])
             ]
             if models:
-                # Prioritize standard tool-capable models if available
                 for p in ["llama-3.1-8b-instant", "llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768"]:
                     if p in models:
                         models.remove(p)
@@ -88,22 +98,27 @@ with st.sidebar:
         )
 
     student_id = st.text_input(
-        "Student ID",
+        "Student / User ID",
         value="demo",
-        help="Each student has an isolated memory thread in SQLite.",
+        help="Each user has an isolated memory thread in SQLite.",
     )
 
     st.divider()
-    st.subheader("📈 Stored BMI Trend")
-    trend_container = st.container()
+    st.subheader("📈 BMI Progression")
+    chart_placeholder = st.container()
+
+    st.divider()
+    st.subheader("📄 Clinical Report Export")
+    export_placeholder = st.container()
 
     st.divider()
     st.markdown(
         "**System Architecture:**\n"
-        "- **Supervisor:** Rule-based routing\n"
-        "- **Calculator Agent:** Unit conversion & tool execution\n"
+        "- **Supervisor:** Rule-based routing + Hop limit\n"
+        "- **Calculator Agent:** Unit conversion, BMI & Ideal Weight tools\n"
         "- **Advisor Agent:** Grounded RAG + Source Citation\n"
-        "- **Safety Guard:** Dual-layer (rules + LLM reviewer)\n"
+        "- **Safety Guard:** Regex rules + LLM reviewer\n"
+        "- **Episodic Memory:** Stores biometrics & personal health context\n"
         "- **Human-in-the-Loop:** Active for extreme BMI (<15 or >45)"
     )
 
@@ -127,7 +142,6 @@ def get_llm(model_id: str):
             from langchain_ollama import ChatOllama
             from ta2.config import MODEL
             ollama_llm = ChatOllama(model=MODEL, temperature=0)
-            # Ping to verify Ollama is reachable
             ollama_llm.invoke("test")
             return ollama_llm, f"Local Ollama ({MODEL})"
         except Exception:
@@ -158,19 +172,95 @@ if graph is None:
 else:
     st.sidebar.success(f"🟢 **Active Backend:** {backend_name}")
 
-# Populate sidebar trend
-if store:
-    with trend_container:
-        if st.button("Refresh Trend Chart"):
-            h = get_history(store, student_id)
-            chart = trend_chart(h)
-            if chart:
-                st.code(chart, language="text")
-            else:
-                st.info(trend_report(h))
 
 # ---------------------------------------------------------------------------
-# Chat Interface
+# Interactive Plotly Chart Helper
+# ---------------------------------------------------------------------------
+def render_plotly_bmi_chart(history: list[dict]):
+    """Render interactive Plotly chart with shaded WHO BMI zones."""
+    try:
+        import plotly.graph_objects as go
+        if not history:
+            st.info("No weigh-in records stored yet.")
+            return
+
+        dates = [h.get("ts", "")[:10] for h in history]
+        bmis = [h.get("bmi", 0.0) for h in history]
+        weights = [h.get("weight_kg", 0.0) for h in history]
+        cats = [h.get("category", "") for h in history]
+
+        hover_texts = [
+            f"Date: {d}<br>BMI: {b:.2f}<br>Weight: {w} kg<br>Category: {c}"
+            for d, b, w, c in zip(dates, bmis, weights, cats)
+        ]
+
+        fig = go.Figure()
+        max_y = max(max(bmis) + 4, 36)
+
+        # WHO BMI Bands
+        fig.add_hrect(y0=0, y1=18.5, fillcolor="rgba(147, 197, 253, 0.25)", line_width=0,
+                      annotation_text="Underweight", annotation_position="top left",
+                      annotation_font_size=9, annotation_font_color="#2563eb")
+        fig.add_hrect(y0=18.5, y1=24.9, fillcolor="rgba(134, 239, 172, 0.25)", line_width=0,
+                      annotation_text="Normal (18.5-24.9)", annotation_position="top left",
+                      annotation_font_size=9, annotation_font_color="#16a34a")
+        fig.add_hrect(y0=25.0, y1=29.9, fillcolor="rgba(253, 224, 71, 0.25)", line_width=0,
+                      annotation_text="Overweight (25-29.9)", annotation_position="top left",
+                      annotation_font_size=9, annotation_font_color="#ca8a04")
+        fig.add_hrect(y0=30.0, y1=max_y, fillcolor="rgba(252, 165, 165, 0.25)", line_width=0,
+                      annotation_text="Obesity (≥ 30)", annotation_position="top left",
+                      annotation_font_size=9, annotation_font_color="#dc2626")
+
+        fig.add_trace(go.Scatter(
+            x=dates,
+            y=bmis,
+            mode="lines+markers",
+            name="BMI",
+            line=dict(color="#1e3a8a", width=2.5),
+            marker=dict(size=8, color="#1e3a8a", symbol="circle"),
+            hoverinfo="text",
+            hovertext=hover_texts,
+        ))
+
+        fig.update_layout(
+            margin=dict(l=10, r=10, t=25, b=10),
+            height=260,
+            xaxis=dict(title="", showgrid=True, gridcolor="#f1f5f9"),
+            yaxis=dict(title="BMI", range=[14, max_y], showgrid=True, gridcolor="#f1f5f9"),
+            showlegend=False,
+            template="plotly_white",
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    except ImportError:
+        # Fallback to ASCII chart if plotly is not installed
+        chart = trend_chart(history)
+        if chart:
+            st.code(chart, language="text")
+        else:
+            st.info(trend_report(history))
+
+
+# Populate sidebar components
+if store:
+    with chart_placeholder:
+        h_data = get_history(store, student_id)
+        render_plotly_bmi_chart(h_data)
+
+    with export_placeholder:
+        prof_data = get_profile(store, student_id)
+        facts_data = get_user_facts(store, student_id)
+        report_html = generate_doctor_report_html(student_id, prof_data, h_data, facts_data)
+        st.download_button(
+            label="📥 Download Clinical Report (HTML)",
+            data=report_html,
+            file_name=f"health_screening_{student_id}.html",
+            mime="text/html",
+            help="Printable summary for medical consultation with biometrics & discussion questions.",
+            use_container_width=True,
+        )
+
+# ---------------------------------------------------------------------------
+# Chat Interface & Voice Input
 # ---------------------------------------------------------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -179,7 +269,30 @@ if "pending_review" not in st.session_state:
 if "review_info" not in st.session_state:
     st.session_state.review_info = None
 
-# Display message history
+# Voice Input with Groq Whisper
+voice_query = None
+if hasattr(st, "audio_input") and groq_key:
+    with st.expander("🎙️ Voice Input (Speak measurements or questions)", expanded=False):
+        audio_val = st.audio_input("Record voice query")
+        if audio_val is not None:
+            import httpx
+            try:
+                with st.spinner("Transcribing via Groq Whisper-large-v3..."):
+                    audio_bytes = audio_val.read()
+                    resp = httpx.post(
+                        "https://api.groq.com/openai/v1/audio/transcriptions",
+                        headers={"Authorization": f"Bearer {groq_key}"},
+                        files={"file": ("recording.wav", audio_bytes, "audio/wav")},
+                        data={"model": "whisper-large-v3"},
+                        timeout=15.0,
+                    )
+                    if resp.status_code == 200:
+                        voice_query = resp.json().get("text", "").strip()
+                        st.success(f"🗣️ Transcribed: *\"{voice_query}\"*")
+            except Exception as e:
+                st.warning(f"Voice note: {e}")
+
+# Render chat history
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
@@ -212,18 +325,21 @@ if st.session_state.pending_review and st.session_state.review_info:
             st.session_state.messages.append({"role": "assistant", "content": res.get("final", "Rejected.")})
             st.rerun()
 
-# User input
-if prompt := st.chat_input("Ask advice or enter measurements (e.g. 'I weigh 70 kg and I am 175 cm')"):
-    st.session_state.messages.append({"role": "user", "content": prompt})
+# Determine incoming user query (either from chat box or voice)
+chat_input_val = st.chat_input("Ask advice or enter measurements (e.g. 'I weigh 70 kg and I am 175 cm')")
+active_prompt = voice_query or chat_input_val
+
+if active_prompt:
+    st.session_state.messages.append({"role": "user", "content": active_prompt})
     with st.chat_message("user"):
-        st.markdown(prompt)
+        st.markdown(active_prompt)
 
     thread = f"{student_id}-main"
     cfg = {"configurable": {"thread_id": thread}}
 
     with st.chat_message("assistant"):
         with st.spinner("Processing through multi-agent supervisor..."):
-            result = graph.invoke(turn_input(prompt, student_id), cfg)
+            result = graph.invoke(turn_input(active_prompt, student_id), cfg)
 
         if result.get("__interrupt__"):
             info = result["__interrupt__"][0].value

@@ -10,15 +10,23 @@ from langchain_core.messages import AIMessage, ToolMessage
 from langchain_ollama import ChatOllama
 
 from ta1.bmi_tool import calculate_bmi_category   # the TA1 tool, unchanged
+from .tools import calculate_ideal_weight_range     # TA2 companion tool
 
 from .config import MODEL, RAG_K
 from .rag import GROUNDED_SYSTEM, format_context, retrieve
 
 CALC_PROMPT = """You are the Calculator agent.
-Call the tool calculate_bmi_category exactly once with weight_kg and height_cm taken from
-the user's message (convert units to kg and cm). If a line in brackets gives a stored height
-and the user only gave a weight, use the stored height. Never compute BMI yourself.
-After the tool returns, reply with the tool output only."""
+You have access to two tools:
+1. `calculate_bmi_category` (takes weight_kg and height_cm) to compute exact BMI and WHO category.
+2. `calculate_ideal_weight_range` (takes height_cm) to compute the healthy adult weight range (BMI 18.5 - 24.9).
+
+Rules:
+- If the user gives weight and height, call `calculate_bmi_category`.
+- If the user asks for their ideal, target, or healthy weight range, call `calculate_ideal_weight_range`.
+- If both apply, you may call both tools.
+- If a line in brackets gives a stored height and the user only gave a weight, use the stored height.
+- Never compute BMI or weight ranges yourself.
+- Reply with the tool output only."""
 
 JUDGE_PROMPT = """You are a safety reviewer for a BMI advisor tool.
 Stating standard BMI categories (Underweight, Normal weight, Overweight, Obesity) and advising the user to consult a doctor, dietitian, or eat a balanced diet is SAFE and expected.
@@ -88,21 +96,23 @@ class Workers:
     def __init__(self, vectorstore, llm=None, k: int = RAG_K):
         self.llm = llm or ChatOllama(model=MODEL, temperature=0)
         self.vs, self.k = vectorstore, k
-        self.calc_agent = create_agent(self.llm, [calculate_bmi_category],
+        self.calc_agent = create_agent(self.llm, [calculate_bmi_category, calculate_ideal_weight_range],
                                        system_prompt=CALC_PROMPT)
 
     def calculate(self, text: str, profile: dict) -> dict:
-        """Calculator agent: normalise units, then LLM extracts numbers, the TA1 tool computes."""
+        """Calculator agent: normalise units, then LLM extracts numbers, tools compute."""
         text = normalize_units(text)   # Improvement 5: imperial -> metric before LLM sees it
         use_stored = profile.get("height_cm") and not HAS_HEIGHT.search(text)
         prefix = f"[Stored height: {profile['height_cm']} cm]\n" if use_stored else ""
         res = self.calc_agent.invoke({"messages": [{"role": "user", "content": prefix + text}]})
-        args = out = None
+        args = None
+        outputs = []
         for m in res["messages"]:
             if isinstance(m, AIMessage) and m.tool_calls and args is None:
                 args = m.tool_calls[0]["args"]
             if isinstance(m, ToolMessage):
-                out = m.content
+                outputs.append(m.content)
+        out = "\n".join(outputs) if outputs else None
         return {"tool_output": out, "args": args}
 
     def advise(self, question: str, user_data: str) -> str:

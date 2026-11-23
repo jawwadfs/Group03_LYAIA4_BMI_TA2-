@@ -5,6 +5,7 @@ Long-term memory  : LangGraph SqliteStore, namespaces (student_id, "history") an
                     (student_id, "profile"). Stored in SQLite, so it survives a restart.
 The trend is computed in plain Python (deterministic), never by the LLM.
 """
+import re
 import sqlite3
 from datetime import datetime
 
@@ -97,3 +98,82 @@ def trend_chart(history: list[dict]) -> str:
         f"{'─' * 50}"
     )
     return "\n".join([header] + rows + [footer])
+
+
+# ---------------------------------------------------------------------------
+# Semantic Episodic Memory: qualitative user health facts & preferences
+# Namespace: (student_id, "facts")
+# ---------------------------------------------------------------------------
+def save_user_fact(store, student: str, category: str, text: str) -> None:
+    """Store qualitative user fact (e.g. dietary preference, injury, lifestyle)."""
+    ts = datetime.now().isoformat(timespec="microseconds")
+    key = f"{category}_{abs(hash(text)) % 10000}"
+    store.put((student, "facts"), key, {"ts": ts, "category": category, "fact": text})
+
+
+def get_user_facts(store, student: str) -> list[dict]:
+    """Retrieve all stored qualitative facts for a student."""
+    items = store.search((student, "facts"), limit=100)
+    return [i.value for i in sorted(items, key=lambda i: i.key)]
+
+
+def format_facts(facts: list[dict]) -> str:
+    """Format facts into a concise string for the Advisor prompt."""
+    if not facts:
+        return ""
+    cats = {}
+    for f in facts:
+        cats.setdefault(f.get("category", "general"), []).append(f.get("fact", ""))
+    parts = []
+    for cat, items in cats.items():
+        parts.append(f"{cat.title()}: {', '.join(dict.fromkeys(items))}")
+    return "; ".join(parts)
+
+
+def extract_and_save_facts(store, student: str, text: str) -> list[str]:
+    """Extract qualitative facts (diet, limitations, lifestyle, age) and persist them."""
+    text_lower = text.lower()
+    found = []
+
+    # Diet preferences
+    diet_m = re.search(r"\b(vegetarian|vegan|plant-based|pescatarian|keto|ketogenic|halal|kosher|gluten-free)\b", text_lower)
+    if diet_m:
+        fact = diet_m.group(1).title() + " diet"
+        save_user_fact(store, student, "diet", fact)
+        found.append(fact)
+
+    # Physical limitations
+    limit_patterns = [
+        (r"\b(knee pain|joint pain|back pain|arthritis|asthma|injured knee|bad back)\b",
+         lambda m: f"Reports {m.group(1)} (favors low-impact exercises)"),
+        (r"\b(?:cannot|can't) run\b", lambda m: "Cannot run (needs walking/swimming/cycling)"),
+    ]
+    for p, fn in limit_patterns:
+        m = re.search(p, text_lower)
+        if m:
+            fact = fn(m)
+            save_user_fact(store, student, "limitation", fact)
+            found.append(fact)
+
+    # Lifestyle
+    lifestyle_patterns = [
+        (r"\b(desk job|sedentary lifestyle|sit all day)\b", lambda m: "Sedentary / desk job"),
+        (r"\b(run daily|go to the gym|lift weights|swim regularly)\b", lambda m: f"Active: {m.group(1)}"),
+    ]
+    for p, fn in lifestyle_patterns:
+        m = re.search(p, text_lower)
+        if m:
+            fact = fn(m)
+            save_user_fact(store, student, "lifestyle", fact)
+            found.append(fact)
+
+    # Age
+    age_m = re.search(r"\bi (?:am|'m)\s*(\d{1,2})\s*(?:years? old|yo)\b", text_lower)
+    if age_m:
+        age_val = int(age_m.group(1))
+        if 15 <= age_val <= 110:
+            fact = f"Age: {age_val} years"
+            save_user_fact(store, student, "demographics", fact)
+            found.append(fact)
+
+    return found

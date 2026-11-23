@@ -14,7 +14,15 @@ from langgraph.types import interrupt
 
 from . import guard
 from .config import (MAX_HOPS, MAX_RETRIES, REVIEW_BMI_HIGH, REVIEW_BMI_LOW, USE_LLM_JUDGE)
-from .memory import get_history, get_profile, save_measurement, trend_report
+from .memory import (
+    extract_and_save_facts,
+    format_facts,
+    get_history,
+    get_profile,
+    get_user_facts,
+    save_measurement,
+    trend_report,
+)
 
 
 class State(TypedDict, total=False):
@@ -39,6 +47,7 @@ class State(TypedDict, total=False):
     reviewed: bool
     saved: bool
     trend: str
+    facts: str
     draft: str
     final: str
     status: str
@@ -56,7 +65,7 @@ def turn_input(text: str, student_id: str, fail_once: bool = False) -> dict:
             "hops": 0, "next": "", "log": [], "blocked": "", "guard_in_done": False,
             "guard_out_done": False, "calc_done": False, "retries": 0, "fail_once": fail_once,
             "error": "", "tool_output": "", "reviewed": False, "saved": False,
-            "trend": "", "draft": "", "final": "", "status": ""}
+            "trend": "", "facts": "", "draft": "", "final": "", "status": ""}
 
 
 def _log(state, line: str) -> list:
@@ -141,13 +150,17 @@ def build_graph(workers, saver, store, max_hops: int = MAX_HOPS):
         trend = trend_report(get_history(store, s["student_id"]))
         return {"saved": True, "trend": trend, "log": _log(s, f"memory: saved; {trend[:70]}")}
 
-    def advisor(s: State):
+    def advisor(s: State, store: BaseStore):
+        extract_and_save_facts(store, s["student_id"], s["user_text"])
+        facts = format_facts(get_user_facts(store, s["student_id"]))
+        facts_context = f"\nUser profile facts: {facts}" if facts else ""
+
         data = s["tool_output"] if s["tool_output"].startswith("BMI:") else s.get("last_bmi", "")
         question = s["user_text"]
         if s["tool_output"].startswith("BMI:"):   # a measurement, not a question: ask about its result
             question = f"My BMI result is: {s['tool_output']} What does this mean and what general guidance applies?"
-        draft = workers.advise(question, f"{data}\n{s['trend']}".strip())
-        return {"draft": draft, "log": _log(s, "advisor: draft written (RAG)")}
+        draft = workers.advise(question, f"{data}\n{s['trend']}{facts_context}".strip())
+        return {"draft": draft, "facts": facts, "log": _log(s, "advisor: draft written (RAG)")}
 
     def guard_out(s: State):
         why = guard.check(s["draft"], "output")

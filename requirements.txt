@@ -6,4 +6,5 @@ langchain-chroma>=1.0              # Chroma vector store for RAG
 gradio>=4.0                        # optional web UI (python -m ta2.main --ui)
 streamlit>=1.35.0                  # permanent 24/7 web UI
 langchain-groq>=0.1.0              # free cloud LLM for Streamlit Cloud
+plotly>=5.0.0                      # interactive BMI zone charts
 pytest>=8.0

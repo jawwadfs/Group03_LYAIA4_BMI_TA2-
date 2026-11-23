@@ -322,3 +322,41 @@ def test_multi_turn_conversation(tmp_path):
     # Long-term memory should now have 2 records for this student
     assert len(get_history(store, "multi")) == 2
 
+
+# --- Tool extension: calculate_ideal_weight_range ---
+def test_calculate_ideal_weight_range():
+    from ta2.tools import calculate_ideal_weight_range
+    # 175 cm: 1.75^2 = 3.0625. Min: 18.5 * 3.0625 = 56.65 (~56.7 kg), Max: 24.9 * 3.0625 = 76.25 (~76.3 kg)
+    res = calculate_ideal_weight_range.invoke({"height_cm": 175})
+    assert "56.7" in res and "76.3" in res and "18.5-24.9" in res
+
+    # Invalid input handling
+    assert "Error:" in calculate_ideal_weight_range.invoke({"height_cm": 0})
+    assert "Error:" in calculate_ideal_weight_range.invoke({"height_cm": -10})
+    assert "Error:" in calculate_ideal_weight_range.invoke({"height_cm": 350})
+
+
+# --- Semantic episodic memory tests ---
+def test_semantic_episodic_memory(tmp_path):
+    from ta2.memory import extract_and_save_facts, format_facts, get_user_facts, open_db
+    saver, store = open_db(str(tmp_path / "mem.sqlite"))
+
+    # Turn 1: user discloses diet & injury
+    text1 = "I follow a vegetarian diet and I have severe knee pain so I cannot run."
+    found = extract_and_save_facts(store, "alice", text1)
+    assert len(found) >= 2
+    assert any("Vegetarian" in f for f in found)
+    assert any("knee pain" in f.lower() or "cannot run" in f.lower() for f in found)
+
+    # Stored facts check
+    facts = get_user_facts(store, "alice")
+    formatted = format_facts(facts)
+    assert "Vegetarian" in formatted
+    assert "knee pain" in formatted.lower() or "cannot run" in formatted.lower()
+
+    # Fact persistence across re-opening store
+    saver2, store2 = open_db(str(tmp_path / "mem.sqlite"))
+    facts2 = get_user_facts(store2, "alice")
+    assert len(facts2) == len(facts)
+
+
