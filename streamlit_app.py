@@ -63,7 +63,7 @@ def get_available_groq_models(api_key: str) -> list[str]:
             data = r.json()
             models = [
                 m.get("id", "") for m in data.get("data", [])
-                if "/" not in m.get("id", "") and not any(skip in m.get("id", "").lower() for skip in ["whisper", "vision", "embed", "tts", "guard", "audio", "orpheus"])
+                if "/" not in m.get("id", "") and not any(skip in m.get("id", "").lower() for skip in ["whisper", "vision", "embed", "tts", "guard", "audio", "orpheus", "allam", "compound"])
             ]
             if models:
                 for prio in ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "qwen-2.5-32b"]:
