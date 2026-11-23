@@ -1,0 +1,21 @@
+BMI Advisor TA2 | student=demo | memory=ON | type 'trend' or 'quit'
+You:  weigh 70 kg and I am 175 cm tall
+   [hop 1] supervisor -> guard_in
+   guard_in: safe
+   [hop 2] supervisor -> calculator
+   calculator: attempt 1 FAILED (injected tool failure)
+   [hop 3] supervisor -> calculator
+   calculator: BMI: 22.86 | Category: Normal weight | Guidance: BMI is in t
+   [hop 4] supervisor -> memory
+   memory: saved; Trend: 13 records (2026-08-01 to 2026-10-20): BMI 26.78 -> 22.86 (-3.9
+   [hop 5] supervisor -> advisor
+   advisor: draft written (RAG)
+   [hop 6] supervisor -> guard_out
+   guard_out: safe
+   [hop 7] supervisor -> finish
+   finish: status=ok
+Agent: BMI: 22.86 | Category: Normal weight | Guidance: BMI is in the normal range, but it is only one general health indicator.
+This means your BMI is in the normal weight range, but it is only a screening measure and does not measure body fat directly. Remember, BMI is just one general health indicator and you should consult a healthcare professional for a comprehensive health assessment.
+Trend: 13 records (2026-08-01 to 2026-10-20): BMI 26.78 -> 22.86 (-3.92, falling); weight 82 -> 70.0 kg.
+
+You: quit

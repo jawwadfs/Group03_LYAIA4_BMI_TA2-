@@ -1,0 +1,29 @@
+=== S1: Do I have to exercise every day?
+Status: ok
+Reply:
+I don't know - that is not covered in the health-guidelines document.
+
+*(Sources consulted: Physical activity for adults, Limitation: muscle versus fat, Healthy pace of weight change)*
+
+=== S2: I weigh 154 lbs and I am 5 ft 10 in. What is my BMI?
+Status: ok
+Reply:
+BMI: 22.11 | Category: Normal weight | Guidance: BMI is in the normal range, but it is only one general health indicator.
+Your BMI is in the normal weight category, indicating that your weight is within a healthy range. However, it is important to remember that BMI is only a screening measure and does not measure body fat directly. It is just one general health indicator.
+
+*(Sources consulted: Adult BMI categories, What BMI is, Being underweight)*
+Trend: 2 records (2026-11-23 to 2026-11-23): BMI 22.86 -> 22.11 (-0.75, falling); weight 70.0 -> 69.9 kg.
+
+=== S3: What are the classes of obesity according to WHO?
+Status: ok
+Reply:
+I don't know - that is not covered in the health-guidelines document.
+
+*(Sources consulted: Adult BMI categories, Limitation: age, sex, ethnicity and fat distribution, What BMI is)*
+
+=== S4: Does lack of sleep affect body weight?
+Status: ok
+Reply:
+I don't know - that is not covered in the health-guidelines document.
+
+*(Sources consulted: Being underweight, Limitation: muscle versus fat, What BMI is)*

@@ -1,0 +1,81 @@
+=== C1: I weigh 70 kg and I am 175 cm tall. What is my BMI?
+--- TA1 ---
+Your BMI is 22.86, which falls within the normal weight category. While this is good news, it's always a good idea to maintain a balanced diet and regular exercise for overall health. Consider talking to a healthcare professional for personalized advice.
+--- TA2 (ok) ---
+BMI: 22.86 | Category: Normal weight | Guidance: BMI is in the normal range, but it is only one general health indicator.
+Your BMI is in the normal weight category, which means your weight is healthy for your height. However, it is important to remember that BMI is only a screening measure and does not measure body fat directly. It is just one general health indicator.
+
+*(Sources consulted: Adult BMI categories, What BMI is, Being underweight)*
+Trend: only 1 record(s) stored, need at least 2.
+[hop 1] supervisor -> guard_in
+guard_in: safe
+[hop 2] supervisor -> calculator
+calculator: BMI: 22.86 | Category: Normal weight | Guidance: BMI is in t
+[hop 3] supervisor -> memory
+memory: saved; Trend: only 1 record(s) stored, need at least 2.
+[hop 4] supervisor -> advisor
+advisor: draft written (RAG)
+[hop 5] supervisor -> guard_out
+guard_out: safe
+[hop 6] supervisor -> finish
+finish: status=ok
+
+=== C2: I weigh 70 kg and my height is 0 cm.
+--- TA1 ---
+Error: height_cm must be greater than 0. Please provide a realistic height value.
+--- TA2 (invalid_input) ---
+I couldn't calculate that. height_cm must be greater than 0. Please check the values and try again.
+[hop 1] supervisor -> guard_in
+guard_in: safe
+[hop 2] supervisor -> calculator
+calculator: Error: height_cm must be greater than 0.
+[hop 3] supervisor -> finish
+finish: status=invalid_input
+
+=== C3: What category was that, and what does it mean?
+--- TA1 ---
+I need the weight in kilograms and height in centimeters to determine the BMI category. Please provide those details.
+--- TA2 (ok) ---
+That BMI is in the normal weight category, meaning it is within the healthy weight range. However, it is important to remember that BMI is only a screening measure and does not show where fat is stored.
+
+*(Sources consulted: Limitation: age, sex, ethnicity and fat distribution, What BMI is, Adult BMI categories)*
+[hop 1] supervisor -> guard_in
+guard_in: safe
+[hop 2] supervisor -> advisor
+advisor: draft written (RAG)
+[hop 3] supervisor -> guard_out
+guard_out: safe
+[hop 4] supervisor -> finish
+finish: status=ok
+
+=== C4: How many minutes of physical activity per week do adults need?
+--- TA1 ---
+Adults need at least 150 to 300 minutes of moderate aerobic activity or 75 to 150 minutes of vigorous activity per week, or a combination of both. This can be broken down into sessions of at least 10 minutes.
+--- TA2 (ok) ---
+Adults aged 18 to 64 should do at least 150 to 300 minutes of moderate-intensity aerobic activity per week.
+
+*(Sources consulted: Physical activity for adults, Healthy pace of weight change, Adult BMI categories)*
+[hop 1] supervisor -> guard_in
+guard_in: safe
+[hop 2] supervisor -> advisor
+advisor: draft written (RAG)
+[hop 3] supervisor -> guard_out
+guard_out: safe
+[hop 4] supervisor -> finish
+finish: status=ok
+
+=== C5: What is the best diet plan for someone with type 2 diabetes?
+--- TA1 ---
+Consider talking to a healthcare professional or a registered dietitian for personalized advice. They can help create a diet plan that suits your specific needs.
+--- TA2 (ok) ---
+I don't know - that is not covered in the health-guidelines document.
+
+*(Sources consulted: Healthy eating basics, Healthy pace of weight change, When to talk to a professional)*
+[hop 1] supervisor -> guard_in
+guard_in: safe
+[hop 2] supervisor -> advisor
+advisor: draft written (RAG)
+[hop 3] supervisor -> guard_out
+guard_out: safe
+[hop 4] supervisor -> finish
+finish: status=ok

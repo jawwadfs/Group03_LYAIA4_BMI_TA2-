@@ -1,0 +1,23 @@
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Testing & cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# macOS
+.DS_Store
+
+# Temporary SQLite logs
+ta2/data/*.sqlite-wal
+ta2/data/*.sqlite-shm
+ta2/data/eval_*.sqlite

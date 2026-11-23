@@ -1,0 +1,15 @@
+BMI Advisor TA2 | student=demo | memory=ON | type 'trend' or 'quit'
+You: I weigh 38 kg and I am 170 cm tall
+   [hop 1] supervisor -> guard_in
+   guard_in: safe
+   [hop 2] supervisor -> calculator
+   calculator: BMI: 13.15 | Category: Underweight | Guidance: BMI is below 
+   [hop 3] supervisor -> review
+[HUMAN REVIEW] Flagged: weight=38.0 kg, height=170.0 cm, BMI=13.15
+Reviewer - Approve this unusual reading? (yes/no) no
+   review: human REJECTED
+   [hop 4] supervisor -> finish
+   finish: status=rejected_by_human
+Agent: A human reviewer rejected this reading, so it was not stored.
+
+You: quit

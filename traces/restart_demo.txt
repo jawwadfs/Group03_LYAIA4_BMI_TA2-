@@ -1,0 +1,51 @@
+BMI Advisor TA2 | student=demo | memory=ON | type 'trend' or 'quit'
+You: trend
+Trend: 5 records (2026-08-01 to 2026-10-21): BMI 26.78 -> 22.86 (-3.92, falling); weight 82 -> 70.0 kg.
+You: I now weigh 68 kg
+   [hop 1] supervisor -> guard_in
+   guard_in: safe
+   [hop 2] supervisor -> calculator
+qu     calculator: BMI: 22.2 | Category: Normal weight | Guidance: BMI is in th
+   [hop 3] supervisor -> memory
+   memory: saved; Trend: 6 records (2026-08-01 to 2026-10-21): BMI 26.78 -> 22.2 (-4.58,
+   [hop 4] supervisor -> advisor
+   advisor: draft written (RAG)
+   [hop 5] supervisor -> guard_out
+   guard_out: safe
+   [hop 6] supervisor -> finish
+   finish: status=ok
+Agent: BMI: 22.2 | Category: Normal weight | Guidance: BMI is in the normal range, but it is only one general health indicator.
+This means your BMI is in the normal range, but it is only one general health indicator. Remember, BMI is a screening measure and does not measure body fat directly. Follow up with a healthcare professional for a comprehensive health assessment.
+Trend: 6 records (2026-08-01 to 2026-10-21): BMI 26.78 -> 22.2 (-4.58, falling); weight 82 -> 68.0 kg.
+
+You: quit
+BMI Advisor TA2 | student=demo | memory=ON | type 'trend' or 'quit'
+You: trend,
+   [hop 1] supervisor -> guard_in
+   guard_in: safe
+   [hop 2] supervisor -> advisor
+   advisor: draft written (RAG)
+   [hop 3] supervisor -> guard_out
+   guard_out: safe
+   [hop 4] supervisor -> finish
+   finish: status=ok
+Agent: I don't know - that is not covered in the health-guidelines document.
+
+You: I now weigh 68 kg
+   [hop 1] supervisor -> guard_in
+   guard_in: safe
+   [hop 2] supervisor -> calculator
+   calculator: BMI: 22.2 | Category: Normal weight | Guidance: BMI is in th
+   [hop 3] supervisor -> memory
+   memory: saved; Trend: 7 records (2026-08-01 to 2026-10-21): BMI 26.78 -> 22.2 (-4.58,
+   [hop 4] supervisor -> advisor
+qu     advisor: draft written (RAG)
+   [hop 5] supervisor -> guard_out
+   guard_out: safe
+   [hop 6] supervisor -> finish
+   finish: status=ok
+Agent: BMI: 22.2 | Category: Normal weight | Guidance: BMI is in the normal range, but it is only one general health indicator.
+This means your BMI is in the normal range, but it is only one general health indicator. Remember, BMI is a screening measure and does not measure body fat directly. Follow up with a healthcare professional for a comprehensive health assessment.
+Trend: 7 records (2026-08-01 to 2026-10-21): BMI 26.78 -> 22.2 (-4.58, falling); weight 82 -> 68.0 kg.
+
+You: quit

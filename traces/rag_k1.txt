@@ -1,0 +1,13 @@
+BMI Advisor TA2 | student=demo | memory=ON | type 'trend' or 'quit'
+You: Why can BMI be misleading for athletes and for Asian populations?
+   [hop 1] supervisor -> guard_in
+   guard_in: safe
+   [hop 2] supervisor -> advisor
+   advisor: draft written (RAG)
+   [hop 3] supervisor -> guard_out
+   guard_out: safe
+   [hop 4] supervisor -> finish
+   finish: status=ok
+Agent: BMI can be misleading for athletes because their muscle mass can lead to a higher BMI without indicating poor health. For Asian populations, the same BMI can mean different health risks due to variations in fat distribution and health risks at lower BMI values.
+
+You: quit

@@ -1,0 +1,21 @@
+BMI Advisor TA2 | student=demo | memory=ON | type 'trend' or 'quit'
+You: I weigh 38 kg and I am 170 cm tall
+   [hop 1] supervisor -> guard_in
+   guard_in: safe
+   [hop 2] supervisor -> calculator
+   calculator: BMI: 13.15 | Category: Underweight | Guidance: BMI is below 
+   [hop 3] supervisor -> review
+[HUMAN REVIEW] Flagged: weight=38.0 kg, height=170.0 cm, BMI=13.15
+Reviewer - Approve this unusual reading? (yes/no) yes
+   review: human APPROVED
+   [hop 4] supervisor -> memory
+   memory: saved; Trend: 15 records (2026-08-01 to 2026-10-20): BMI 26.78 -> 13.15 (-13.
+   [hop 5] supervisor -> advisor
+   advisor: draft written (RAG)
+   [hop 6] supervisor -> guard_out
+   guard_out: BLOCK (diagnosis)
+   [hop 7] supervisor -> finish
+   finish: status=blocked_output:diagnosis
+Agent: I can't diagnose health conditions. BMI is only a screening measure - please talk to a doctor about your health.
+
+You: quit

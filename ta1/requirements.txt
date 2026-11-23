@@ -1,0 +1,13 @@
+# Core agent framework. create_agent() lives in langchain.agents (LangChain 1.x).
+langchain>=1.2,<2.0
+
+# Local Ollama chat model integration (ChatOllama).
+langchain-ollama>=1.0,<2.0
+
+# Used for running the automated test suite.
+pytest>=8.0
+
+# NOTE: langgraph is installed automatically as a dependency of `langchain`
+# (create_agent builds a LangGraph graph under the hood), so it does not
+# need to be listed separately. If you ever see an ImportError mentioning
+# langgraph, run: pip install "langgraph>=1.0,<2.0"

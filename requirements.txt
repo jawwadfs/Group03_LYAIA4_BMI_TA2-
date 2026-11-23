@@ -1,0 +1,9 @@
+langchain>=1.2,<2.0
+langchain-ollama>=1.0,<2.0
+langgraph>=1.0,<2.0
+langgraph-checkpoint-sqlite>=3.0   # SqliteSaver (short-term) + SqliteStore (long-term)
+langchain-chroma>=1.0              # Chroma vector store for RAG
+gradio>=4.0                        # optional web UI (python -m ta2.main --ui)
+streamlit>=1.35.0                  # permanent 24/7 web UI
+langchain-groq>=0.1.0              # free cloud LLM for Streamlit Cloud
+pytest>=8.0
