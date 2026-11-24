@@ -372,7 +372,17 @@ if not st.session_state.pending_review:
 
         with st.chat_message("assistant"):
             with st.spinner("Processing through multi-agent supervisor..."):
-                result = graph.invoke(turn_input(active_prompt, student_id), cfg)
+                try:
+                    result = graph.invoke(turn_input(active_prompt, student_id), cfg)
+                except Exception as invoke_err:
+                    import sqlite3
+                    if isinstance(invoke_err, sqlite3.DatabaseError) or "database" in str(invoke_err).lower():
+                        clear_user_memory(DB_PATH, student_id)
+                        st.cache_resource.clear()
+                        st.warning("⚠️ Storage sync recovered automatically. Re-running...")
+                        st.rerun()
+                    else:
+                        raise invoke_err
 
             if result.get("__interrupt__"):
                 info = result["__interrupt__"][0].value

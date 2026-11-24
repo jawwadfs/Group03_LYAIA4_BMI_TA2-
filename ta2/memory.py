@@ -15,8 +15,30 @@ from langgraph.store.sqlite import SqliteStore
 
 def open_db(path: str):
     """Return (checkpointer, store) backed by the same SQLite file."""
+    import os
+    from pathlib import Path
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    if os.path.exists(path):
+        try:
+            with sqlite3.connect(path) as test_c:
+                res = test_c.execute("PRAGMA integrity_check;").fetchone()
+                if not res or res[0] != "ok":
+                    raise sqlite3.DatabaseError(f"Corrupt db: {res}")
+        except Exception:
+            # Corrupted cross-platform binary or locked db -> recreate fresh
+            try:
+                os.remove(path)
+                for suffix in ["-wal", "-shm", "-journal"]:
+                    if os.path.exists(path + suffix):
+                        os.remove(path + suffix)
+            except Exception:
+                pass
+
     def conn():
-        return sqlite3.connect(path, check_same_thread=False, isolation_level=None)
+        c = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
+        c.execute("PRAGMA busy_timeout = 5000;")
+        return c
+
     saver, store = SqliteSaver(conn()), SqliteStore(conn())
     saver.setup()
     store.setup()

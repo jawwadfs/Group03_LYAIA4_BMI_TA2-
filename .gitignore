@@ -18,6 +18,8 @@ htmlcov/
 .DS_Store
 
 # Temporary SQLite logs
+*.sqlite
+ta2/data/*.sqlite
 ta2/data/*.sqlite-wal
 ta2/data/*.sqlite-shm
 ta2/data/eval_*.sqlite
