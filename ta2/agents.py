@@ -175,7 +175,7 @@ class Workers:
             best_doc = adult_docs[0] if adult_docs else (docs[0] if docs else None)
             if best_doc:
                 body = best_doc.page_content.split(":", 1)[-1].strip() if ":" in best_doc.page_content else best_doc.page_content
-                return f"{body}\n\nSources consulted: {sources}\n\n*(Note: LLM fallback active: {type(exc).__name__} - {exc})*"
+                return f"{body}\n\nSources consulted: {sources}"
             return f"BMI is a screening measure. Consult a doctor or registered dietitian for personal guidance. ({exc})"
 
     def judge(self, text: str) -> bool:

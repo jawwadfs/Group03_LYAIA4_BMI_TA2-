@@ -61,22 +61,24 @@ def get_available_groq_models(api_key: str) -> list[str]:
         )
         if r.status_code == 200:
             data = r.json()
+            skip_terms = ["whisper", "vision", "embed", "tts", "guard", "audio", "orpheus", "allam", "compound", "safeguard", "prompt-guard"]
             models = [
                 m.get("id", "") for m in data.get("data", [])
-                if "/" not in m.get("id", "") and not any(skip in m.get("id", "").lower() for skip in ["whisper", "vision", "embed", "tts", "guard", "audio", "orpheus", "allam", "compound"])
+                if m.get("id", "") and not any(skip in m.get("id", "").lower() for skip in skip_terms)
             ]
             if models:
-                for prio in ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "qwen-2.5-32b"]:
+                # Prioritize active, high-performance models
+                for prio in reversed(["llama-3.3-70b-versatile", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "mixtral-8x7b-32768"]):
                     if prio in models:
                         models.remove(prio)
                         models.insert(0, prio)
                 return models
     except Exception:
         pass
-    return ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"]
+    return ["llama-3.3-70b-versatile", "openai/gpt-oss-20b", "mixtral-8x7b-32768"]
 
 
-selected_model = "llama-3.1-8b-instant"
+selected_model = "llama-3.3-70b-versatile"
 
 with st.sidebar:
     st.header("⚙️ Configuration")
@@ -142,23 +144,33 @@ with st.sidebar:
 
 
 def get_llm(api_key: str, model_id: str):
-    """Instantiate either Groq Cloud LLM or Local Ollama ChatModel."""
+    """Instantiate either Groq Cloud LLM or Local Ollama ChatModel with self-healing fallbacks."""
     clean_key = (api_key or "").strip().strip('"').strip("'")
     if clean_key:
         try:
             from langchain_groq import ChatGroq
-            target_model = model_id or "llama-3.1-8b-instant"
-            return ChatGroq(
-                model_name=target_model,
-                api_key=clean_key,
-                temperature=0,
-            ), f"Groq Cloud ({target_model})"
+            candidates = [model_id, "llama-3.3-70b-versatile", "openai/gpt-oss-20b", "mixtral-8x7b-32768"]
+            seen = set()
+            unique_candidates = [m for m in candidates if m and not (m in seen or seen.add(m))]
+            last_err = None
+            for cand in unique_candidates:
+                try:
+                    candidate_llm = ChatGroq(
+                        model_name=cand,
+                        api_key=clean_key,
+                        temperature=0,
+                    )
+                    # Verification probe: test 1 token generation to confirm active access
+                    candidate_llm.invoke("hi")
+                    return candidate_llm, f"Groq Cloud ({cand})"
+                except Exception as e:
+                    last_err = e
+                    continue
+            st.sidebar.error(f"⚠️ Groq models probe failed: {last_err}")
+            return None, "Groq Error"
         except ImportError:
             st.error("Please install langchain-groq: `pip install langchain-groq`")
             st.stop()
-        except Exception as e:
-            st.sidebar.error(f"Groq Init Error: {e}")
-            return None, "Groq Error"
     else:
         # Default to local Ollama
         try:
