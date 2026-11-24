@@ -64,7 +64,7 @@ def normalize_units(text: str) -> str:
 
     # --- feet + inches spelled out: "5 ft 10 in", "5 feet 10 inches" ---
     text = re.sub(
-        r"(\d+(?:\.\d+)?)\s*(?:ft|feet|foot)\s+(\d+(?:\.\d+)?)\s*(?:in|inch\w*)",
+        r"(\d+(?:\.\d+)?)\s*(?:ft|feet|foot)\s+(\d+(?:\.\d+)?)\s*(?:inch\w*|in\b)",
         _ft_in, text, flags=re.I)
 
     # --- feet only: "6 ft", "6 feet" (no inches part) ---
