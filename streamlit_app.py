@@ -141,20 +141,24 @@ with st.sidebar:
     )
 
 
-def get_llm(model_id: str):
+def get_llm(api_key: str, model_id: str):
     """Instantiate either Groq Cloud LLM or Local Ollama ChatModel."""
-    if groq_key:
+    clean_key = (api_key or "").strip().strip('"').strip("'")
+    if clean_key:
         try:
             from langchain_groq import ChatGroq
             target_model = model_id or "llama-3.1-8b-instant"
             return ChatGroq(
                 model_name=target_model,
-                api_key=groq_key,
+                api_key=clean_key,
                 temperature=0,
             ), f"Groq Cloud ({target_model})"
         except ImportError:
             st.error("Please install langchain-groq: `pip install langchain-groq`")
             st.stop()
+        except Exception as e:
+            st.sidebar.error(f"Groq Init Error: {e}")
+            return None, "Groq Error"
     else:
         # Default to local Ollama
         try:
@@ -170,7 +174,7 @@ def get_llm(model_id: str):
 # Cache graph across sessions
 @st.cache_resource(show_spinner=False)
 def init_agent(key_str: str, model_id: str):
-    llm, backend_name = get_llm(model_id)
+    llm, backend_name = get_llm(key_str, model_id)
     if llm is None:
         return None, None, backend_name
     saver, store = open_db(DB_PATH)

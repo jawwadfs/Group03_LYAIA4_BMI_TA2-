@@ -153,21 +153,30 @@ class Workers:
         docs = retrieve(self.vs, question, self.k)
         # Improvement 3: cite which guideline sections the answer came from
         sources = ", ".join(dict.fromkeys(d.metadata["source"] for d in docs))
-        prompt = (f"{GROUNDED_SYSTEM}\n\nCONTEXT:\n{format_context(docs)}\n\n"
-                  f"USER DATA:\n{user_data or 'none'}\n\nQUESTION: {question}")
+        messages = [
+            {"role": "system", "content": GROUNDED_SYSTEM},
+            {"role": "user", "content": f"CONTEXT:\n{format_context(docs)}\n\nUSER DATA:\n{user_data or 'none'}\n\nQUESTION: {question}"}
+        ]
         try:
-            answer = self.llm.invoke(prompt).content.strip()
+            res = self.llm.invoke(messages)
+            content = res.content if hasattr(res, "content") else str(res)
+            if isinstance(content, list):
+                answer = "".join(b.get("text", str(b)) if isinstance(b, dict) else str(b) for b in content).strip()
+            else:
+                answer = str(content).strip()
             if not answer.lower().startswith("i don't know"):
                 return f"{answer}\n\nSources consulted: {sources}"
             return answer
-        except Exception:
-            # Resilient fallback: ground cleanly in guidelines without raw headers
-            if docs:
-                adult_docs = [d for d in docs if "children" not in d.metadata.get("source", "").lower()]
-                best_doc = adult_docs[0] if adult_docs else docs[0]
+        except Exception as exc:
+            import sys
+            print(f"[ADVISOR ERROR] LLM invoke failed: {exc}", file=sys.stderr)
+            # In offline fallback: ground cleanly in guidelines without raw headers
+            adult_docs = [d for d in docs if "children" not in d.metadata.get("source", "").lower()]
+            best_doc = adult_docs[0] if adult_docs else (docs[0] if docs else None)
+            if best_doc:
                 body = best_doc.page_content.split(":", 1)[-1].strip() if ":" in best_doc.page_content else best_doc.page_content
-                return f"{body}\n\nSources consulted: {sources}"
-            return "BMI is a screening measure. Consult a doctor or registered dietitian for personal guidance."
+                return f"{body}\n\nSources consulted: {sources}\n\n*(Note: LLM fallback active: {type(exc).__name__} - {exc})*"
+            return f"BMI is a screening measure. Consult a doctor or registered dietitian for personal guidance. ({exc})"
 
     def judge(self, text: str) -> bool:
         """Guard agent, LLM layer: True means BLOCK."""
